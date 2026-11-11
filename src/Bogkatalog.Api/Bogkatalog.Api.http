@@ -1,0 +1,91 @@
+# Kopiér filen til SQLite.private.http i SAMME mappe, før I indsætter koder og tokens.
+# *.private.http er udeladt fra Git og Docker-build. Skabelonen her skal forblive tom.
+@baseUrl = https://localhost:5443
+@readerPassword = INDSAET_FRA_ENV
+@editorPassword = INDSAET_FRA_ENV
+@readerToken = INDSAET_ACCESS_TOKEN
+@editorToken = INDSAET_ACCESS_TOKEN
+@bookId = 7
+
+### A0 Health: 200. Kræver ikke login.
+GET {{baseUrl}}/health
+
+### A1 Bogliste uden token: 401.
+GET {{baseUrl}}/api/books
+
+### A2 Forkert adgangskode: 401.
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{"username":"reader","password":"forkert"}
+
+### B1 Login som læser: 200. Kopiér accessToken til readerToken øverst.
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{"username":"reader","password":"{{readerPassword}}"}
+
+### B2 Læserens bogliste: 200.
+GET {{baseUrl}}/api/books?page=1&pageSize=2
+Authorization: Bearer {{readerToken}}
+
+### B3 Læser prøver POST: 403. Reader må ikke oprette.
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{readerToken}}
+Content-Type: application/json
+
+{"title":"Adgangstest","author":"Holdet","pages":100}
+
+### C1 Login som redaktør: 200. Kopiér accessToken til editorToken øverst.
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{"username":"editor","password":"{{editorPassword}}"}
+
+### C2 Redaktør opretter: 201, Location og JSON med det faktiske id.
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{editorToken}}
+Content-Type: application/json
+
+{"title":"Adgangstest","author":"Holdet","pages":100}
+
+### C3 Hent ny bog. Ret bookId til id fra C2: 200.
+GET {{baseUrl}}/api/books/{{bookId}}
+Authorization: Bearer {{editorToken}}
+
+### C4 Redaktør sender ugyldigt input: 400. Ingen ny bog.
+POST {{baseUrl}}/api/books
+Authorization: Bearer {{editorToken}}
+Content-Type: application/json
+
+{"title":"","author":"Holdet","pages":0}
+
+### D1 Læser prøver PUT: 403, også hvis id mangler.
+PUT {{baseUrl}}/api/books/{{bookId}}
+Authorization: Bearer {{readerToken}}
+Content-Type: application/json
+
+{"title":"Ændret","author":"Holdet","pages":120}
+
+### D2 Læser prøver DELETE: 403.
+DELETE {{baseUrl}}/api/books/{{bookId}}
+Authorization: Bearer {{readerToken}}
+
+### D3 Redaktør sletter testbog: 204 første gang, derefter 404.
+DELETE {{baseUrl}}/api/books/{{bookId}}
+Authorization: Bearer {{editorToken}}
+
+### D4 Opdigtet token: 401.
+GET {{baseUrl}}/api/books
+Authorization: Bearer dette-er-ikke-et-gyldigt-token
+
+### D5 Hvilken konto er tokenet udstedt til? 200.
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{readerToken}}
+
+### D6 Editor opdaterer: 200. Hent derefter C3 og kontrollér værdierne.
+PUT {{baseUrl}}/api/books/{{bookId}}
+Authorization: Bearer {{editorToken}}
+Content-Type: application/json
+
+{"title":"SQLite test updated","author":"Study group","pages":140}

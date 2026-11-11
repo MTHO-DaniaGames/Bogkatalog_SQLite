@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Bogkatalog.Api/Bogkatalog.Api.csproj" />
+    <Project Path="src/Bogkatalog.Web/Bogkatalog.Web.csproj" />
+  </Folder>
+</Solution>

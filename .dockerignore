@@ -1,0 +1,15 @@
+**/bin
+**/obj
+**/.vs
+.git
+**/App_Data
+*.user
+.env
+.certs
+**/*.pfx
+**/*.private.http
+
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*

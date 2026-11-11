@@ -1,0 +1,86 @@
+@page "/"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject BookApiClient Api
+@inject ApiSession Session
+@using System.Text.Json
+<PageTitle>Bogkatalog · SQLite</PageTitle>
+<h1>Bogkatalog</h1>
+<p class="notice">SQLite-version: API’et gemmer bøger i en database. Login og rettigheder fungerer som på dag 9.</p>
+<h2>Login</h2>
+@if (Session.IsLoggedIn)
+{
+    <p role="status">Logget ind som @Session.Username. Rolle: @Session.Role. Token gælder til @Session.ExpiresAt.ToLocalTime().ToString("HH:mm").</p>
+    <button @onclick="Logout" disabled="@busy">Log ud</button>
+    <p>Log ud fjerner tokenet fra denne Web-session. Et kopieret token gælder fortsat frem til udløb.</p>
+}
+else
+{
+    <label>Brugernavn<select @bind="username" disabled="@busy"><option value="reader">reader</option><option value="editor">editor</option></select></label>
+    <label>Adgangskode<input type="password" @bind="password" autocomplete="off" disabled="@busy" /></label>
+    <button @onclick="Login" disabled="@busy">Log ind</button>
+    <p>Find de lokale øvelsesadgangskoder i jeres .env-fil. Brug aldrig en rigtig adgangskode her.</p>
+}
+<button @onclick="() => Load(1)" disabled="@busy">Hent bøger</button>
+@if (busy) { <p role="status">Arbejder …</p> }
+@if (error!="") { <p role="alert" class="validation-message">@error</p> }
+@if (hasLoaded)
+{
+    <h2>Bøger · Side @currentPage · @totalCount i alt</h2>
+    <table><thead><tr><th>Id</th><th>Titel</th><th>Forfatter</th><th>Antal sider i bogen</th></tr></thead><tbody>
+    @foreach(var b in books) { <tr @key="b.Id"><td>@b.Id</td><td>@b.Title</td><td>@b.Author</td><td>@b.Pages</td></tr> }
+    </tbody></table>
+    <button @onclick="() => Load(currentPage-1)" disabled="@(busy || currentPage<=1)">Forrige</button>
+    <button @onclick="() => Load(currentPage+1)" disabled="@(busy || !hasNext)">Næste</button>
+}
+<h2>Tilføj en bog</h2>
+<p>Formularen er synlig for begge roller, så I kan afprøve API’ets adgangskontrol.</p>
+<EditForm Model="draft" OnValidSubmit="Save" FormName="add-book">
+<DataAnnotationsValidator /><fieldset disabled="@busy">
+<label>Titel<InputText @bind-Value="draft.Title" /></label><ValidationMessage For="()=>draft.Title" />
+<label>Forfatter<InputText @bind-Value="draft.Author" /></label><ValidationMessage For="()=>draft.Author" />
+<label>Antal sider i bogen<InputNumber @bind-Value="draft.Pages" /></label><ValidationMessage For="()=>draft.Pages" />
+<button type="submit">Tilføj bog</button></fieldset></EditForm>
+<p role="status">@message</p>
+@code {
+    private string username="reader", password="", error="", message="";
+    private bool busy, hasLoaded, hasNext;
+    private int currentPage=1,totalCount;
+    private List<Book> books=new();
+    private Book draft=new();
+    private async Task Run(Func<Task> action)
+    {
+        if(busy) return;
+        busy=true;error="";message="";
+        try { await action(); }
+        catch(BookApiException ex)
+        {
+            error=$"HTTP {ex.Status}: {ex.Message}";
+            if(ex.Status==401) { Session.Clear(); ClearBooks(); }
+        }
+        catch(BookValidationException ex) { error=string.Join(" ",ex.Errors.Values.SelectMany(x=>x)); }
+        catch(OperationCanceledException) { error="Tidsgrænsen blev overskredet. Kontrollér listen før I prøver POST igen."; }
+        catch(HttpRequestException) { error="Kan ikke kontakte API’et. Kontrollér containere og konfiguration."; }
+        catch(JsonException) { error="Svaret havde et uventet format."; }
+        finally { busy=false;password=""; }
+    }
+    private Task Login() => Run(async () =>
+    {
+        ClearBooks();await Api.LoginAsync(username,password);
+        message="Login lykkedes. Vælg Hent bøger for at teste det beskyttede kald.";
+    });
+    private Task Load(int page) => Run(async () => await ReadBooks(page));
+    private async Task ReadBooks(int page)
+    {
+        var result=await Api.GetPageAsync(page);
+        books=result.Items; currentPage=result.Page;totalCount=result.TotalCount;
+        hasNext=result.Links.Next is not null;hasLoaded=true;
+    }
+    private Task Save() => Run(async () =>
+    {
+        var created=await Api.AddAsync(new BookInput(draft.Title,draft.Author,draft.Pages));
+        message=$"Bogen er oprettet med id {created.Id}.";draft=new();
+        await ReadBooks(currentPage);
+    });
+    private void ClearBooks() { books.Clear();hasLoaded=false;hasNext=false;totalCount=0; }
+    private void Logout() { Session.Clear();ClearBooks();error="";message="Logget ud af denne Web-session.";password=""; }
+}

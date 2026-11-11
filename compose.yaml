@@ -1,0 +1,38 @@
+name: bogkatalog-sqlite
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:5443:8443"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:8080;https://+:8443"
+      Kestrel__Certificates__Default__Path: /https/localhost.pfx
+      Kestrel__Certificates__Default__Password: "${CERT_PASSWORD:?Kør Prepare-HTTPS.ps1 først}"
+      DemoAuth__ReaderPassword: "${READER_PASSWORD:?Kør Prepare-HTTPS.ps1 først}"
+      DemoAuth__EditorPassword: "${EDITOR_PASSWORD:?Kør Prepare-HTTPS.ps1 først}"
+      BookStorage__Path: /app/data/books.db
+    volumes:
+      - sqlitedata:/app/data
+      - ./.certs:/https:ro
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.Web
+    ports:
+      - "127.0.0.1:5143:8443"
+    environment:
+      ASPNETCORE_URLS: "http://+:8080;https://+:8443"
+      Kestrel__Certificates__Default__Path: /https/localhost.pfx
+      Kestrel__Certificates__Default__Password: "${CERT_PASSWORD:?Kør Prepare-HTTPS.ps1 først}"
+      # Lokal enkelt-pc-øvelse: dette interne hop bruger HTTP, ikke TLS.
+      BooksApi__BaseUrl: http://api:8080/
+      BooksApi__TimeoutSeconds: "5"
+    volumes:
+      - ./.certs:/https:ro
+    depends_on:
+      - api
+volumes:
+  sqlitedata:
