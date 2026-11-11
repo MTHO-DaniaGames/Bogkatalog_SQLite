@@ -12,7 +12,7 @@ Visual Studio med .NET 10, Docker Desktop med Linux-containere og internet til f
 
 ## 1. Åbn den rigtige mappe
 
-Pak hele `Bogkatalog_SQLite.zip` ud. Åbn `Bogkatalog_SQLite/Bogkatalog.slnx` i Visual Studio. Åbn **View > Terminal**, og skriv:
+Hent hele repoet via **Code → Download ZIP** på GitHub, og pak zipfilen ud, eller klon repoet med GitHub Desktop. GitHubs zipfil og den udpakkede mappe hedder typisk `Bogkatalog_SQLite-main`. Åbn **Bogkatalog.slnx** i projektmappen i Visual Studio. Åbn derefter **View > Terminal**, og skriv:
 
 ```powershell
 dir
